@@ -1,0 +1,56 @@
+{
+  "intent": [
+    {
+      "name": "get_hts_rates_entries",
+      "description": "Get HTS rate entries - evaluates tariff rates for given HTS codes, country of origin, cost, quantity, and other parameters",
+      "endpoint": "http://localhost:7000/htsdata/rates/entries",
+      "method": "GET",
+      "tags": ["hts", "rates", "tariff"],
+      "authentication": {
+        "required": true,
+        "type": "Bearer",
+        "tokenSource": "login",
+        "headerName": "Authorization",
+        "format": "Bearer {jwt_token}"
+      },
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "post_hts_context_batch",
+      "description": "Get HTS context in batch - retrieves basic info, rates, classification, and rules for multiple HTS codes",
+      "endpoint": "http://localhost:7000/htsdata/context/hts/batch",
+      "method": "POST",
+      "tags": ["hts", "context", "batch", "classification"],
+      "authentication": {
+        "required": true,
+        "type": "Bearer",
+        "tokenSource": "login",
+        "headerName": "Authorization",
+        "format": "Bearer {jwt_token}"
+      },
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "hts_codes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Array of HTS codes (e.g. 9903.01.24, 9903.01.25)"
+          },
+          "include": {
+            "type": "string",
+            "description": "Comma-separated fields to include: basic, rates, classification, rules"
+          },
+          "history_lookback": {
+            "type": "integer",
+            "description": "Number of years for history lookback"
+          }
+        },
+        "required": []
+      }
+    }
+  ]
+}

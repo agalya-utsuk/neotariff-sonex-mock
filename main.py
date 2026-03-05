@@ -1,9 +1,11 @@
 import json
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import os
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
 
@@ -20,6 +22,97 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.post("/session")
+async def create_session(request: Request):
+    """Create a session by forwarding request to internal API"""
+    try:
+        # Get auth_token from request body, default to "neotariff@123"
+        body = {}
+        try:
+            body = await request.json() or {}
+        except Exception:
+            # Empty body or invalid JSON - use defaults
+            pass
+        auth_token = body.get("auth_token", "neotariff@123")
+        api_key = os.getenv("SONEX_API_KEY")
+        
+        if not api_key:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "message": "API_KEY environment variable is not set"
+                }
+            )
+        
+        # Make request to internal API
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:5000/api/session",
+                json={"api_key": api_key},
+                headers={
+                    "Authorization": f"Bearer {auth_token}",
+                    "Content-Type": "application/json"
+                },
+                timeout=30.0
+            )
+            
+            # Return the response data (guard against non-JSON upstream response)
+            text = response.text
+            if not text or not text.strip():
+                return JSONResponse(
+                    status_code=502,
+                    content={
+                        "success": False,
+                        "message": "Upstream session API returned empty response",
+                        "code": "SESSION_ERROR"
+                    }
+                )
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return JSONResponse(
+                    status_code=502,
+                    content={
+                        "success": False,
+                        "message": "Upstream session API returned invalid JSON",
+                        "code": "SESSION_ERROR"
+                    }
+                )
+            
+    except httpx.HTTPStatusError as e:
+        # Handle HTTP errors
+        error_data = None
+        try:
+            error_data = e.response.json() if e.response.text else {}
+            error_message = error_data.get("message", str(e))
+            error_code = error_data.get("code", "SESSION_ERROR")
+        except:
+            error_message = str(e)
+            error_code = "SESSION_ERROR"
+        
+        return JSONResponse(
+            status_code=e.response.status_code,
+            content={
+                "success": False,
+                "message": error_message,
+                "code": error_code
+            }
+        )
+    except Exception as e:
+        # Handle other errors
+        error_message = str(e)
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": error_message,
+                "code": "SESSION_ERROR"
+            }
+        )
 
 
 @app.get("/htsdata/rates/entries")
